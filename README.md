@@ -13,10 +13,10 @@ The packages required can be found in `requirements.txt`.
 - The 5-fold cross-validation is implemented in [`src/train.py`](src/train.py) and [`src/evaluate.py`](src/evaluate.py). For instance, AttnCNN can be trained with the command `python3 train.py --model_dir=experiments/cnn`. 
 
 ### Wavelet-based algorithm
-The implementation of the wavelet-based method can be found in [`src/wavedel/`](src/wavedel/).
+The implementation of the wavelet-based method can be found in [`src/compare/wavedel/`](src/compare/wavedel/).
 
 ### Beat averaging
-The beat averaging process is implemented in [`src/qrs_detector.py`](src/qrs_detector.py).
+The beat averaging process is implemented in [`src/compare/qrs_detector.py`](src/compare/qrs_detector.py).
 
 
 

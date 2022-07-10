@@ -3,6 +3,7 @@ import numpy as np
 import itertools
 from scipy.signal import medfilt
 
+
 def adjust_offset(peak, offset, wt_at_scale, sampling_rate, max_distance=0.08,shift=3): 
     new_off = zero_crossing(wt_at_scale,offset,len(wt_at_scale)-1)
     max_distance = int(math.ceil(max_distance*sampling_rate) + 1)

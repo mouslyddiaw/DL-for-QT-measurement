@@ -133,3 +133,9 @@ def load_checkpoint(checkpoint, model, optimizer=None):
         optimizer.load_state_dict(checkpoint['optim_dict'])
 
     return checkpoint
+
+def flatten(lst):
+    new_lst = []
+    for ele in lst:
+        new_lst.extend(ele)
+    return new_lst

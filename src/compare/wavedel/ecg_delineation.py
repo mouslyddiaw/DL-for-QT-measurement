@@ -5,7 +5,7 @@ from numpy import convolve as conv
 from scipy.signal import resample, find_peaks 
 from . import utils as ut
 from . import wavelet as wvlt
-from neurokit2.ecg import ecg_peaks, ecg_delineate 
+#from neurokit2.ecg import ecg_peaks, ecg_delineate 
 
 
 ################################ Detect all fiducials ################################

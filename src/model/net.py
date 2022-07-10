@@ -417,7 +417,7 @@ class Loss_MSE_CE(torch.nn.Module):
         precision1 = torch.exp(-self.log_vars[1])
         loss1 = precision1*loss1 + self.log_vars[1]
         
-        return loss0+loss1 
+        return loss0+loss1  
 
 class Loss_MSE_CE_Dice(torch.nn.Module):
     def __init__(self, task_num):

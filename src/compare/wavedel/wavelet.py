@@ -1,5 +1,3 @@
-## Source: https://github.com/caledezma/WTdelineator
-
 import numpy as np
 from scipy.signal import resample
 

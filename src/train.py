@@ -3,7 +3,7 @@
 import argparse
 import logging
 import os
-
+import json
 import numpy as np
 import torch
 import torch.optim as optim
@@ -12,7 +12,7 @@ from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 import utils
 from model.net import AttnCNNv2, KanResWide, UNET_1D, Loss_MSE_CE, Loss_MSE_CE_Dice, choose_model  
-from model.data_loader import ECGDataset 
+from model.data_loader import ECGDatasetStratified
 from evaluate import evaluate, metrics
 import math
 from sklearn.model_selection import KFold
@@ -68,7 +68,7 @@ def train(model, optimizer, scheduler, loss_fn, dataloader, params, metrics, wri
         # Iterate over the DataLoader for training data
         for index, samples_batch in enumerate(dataloader):
             leads_batch = samples_batch['templates']
-            intervals_batch = samples_batch['interval'] 
+            intervals_batch = samples_batch['interval']  
             classes_batch = samples_batch['class'] 
             for _, train_batch in enumerate(leads_batch): 
 
@@ -107,6 +107,7 @@ def train(model, optimizer, scheduler, loss_fn, dataloader, params, metrics, wri
                 loss_avg.update(loss.item()) 
                 pbar.set_postfix(loss='{:05.3f}'.format(loss_avg()))
                 pbar.update()
+                #break
         logging.info("Loss parameters: {}".format(list(loss_fn.parameters())))
         # compute the average loss 
         train_loss = loss_avg()
@@ -151,10 +152,10 @@ def train_and_evaluate(model, train_dataloader, val_dataloader, optimizer, sched
         val_loss, val_mae = metrics_mean['loss'], metrics_mean['absolute error']
          
         # Write loss and metric on tensorboard
-        writer.add_scalar('Fold'+str(fold+1)+'/loss-train', train_loss, epoch +1) 
-        writer.add_scalar('Fold'+str(fold+1)+'/loss-val', val_loss, epoch + 1) 
-        #writer.add_scalar('Fold'+str(fold+1)+'/mae-train', train_mae, epoch +1) 
-        writer.add_scalar('Fold'+str(fold+1)+'/mae-val', val_mae, epoch + 1) 
+        writer.add_scalar('Fold'+str(fold)+'/loss-train', train_loss, epoch +1) 
+        writer.add_scalar('Fold'+str(fold)+'/loss-val', val_loss, epoch + 1) 
+        #writer.add_scalar('Fold'+str(fold)+'/mae-train', train_mae, epoch +1) 
+        writer.add_scalar('Fold'+str(fold)+'/mae-val', val_mae, epoch + 1) 
 
         is_best = val_mae <= best_mae
         
@@ -164,7 +165,7 @@ def train_and_evaluate(model, train_dataloader, val_dataloader, optimizer, sched
                                'optim_dict': optimizer.state_dict()},
                                 is_best=is_best,
                                 checkpoint=model_dir,
-                                fold=fold+1)
+                                fold=fold)
 
         # If best_eval, best_save_path
         if is_best:
@@ -198,19 +199,24 @@ if __name__ == '__main__':
     logging.info("Open tensorboard writer")
     writer = SummaryWriter(args.model_dir + '/runs/' + model_name +'_' + args.experiment_tag) 
     
-    templates = ECGDataset(shift = False) 
-    #templates_shifted = ECGDataset(shift = True)  
-
+    templates = ECGDatasetStratified()
+    patient_splits = json.load(open("data/private-database/patient_splits_global.json"))
+    files_per_patient = json.load(open("data/private-database/files_per_patient.json"))
+    idx_fname = templates.idx_fname
+    fname_idx = {item: key for key, item in idx_fname.items()}  
     nb_leads, nfold = 12, 5
-    kfold = KFold(n_splits=nfold, shuffle=True, random_state=1)
 
-    for fold, (train_ids, val_ids) in enumerate(kfold.split(list(range(1, 8855)))):  
-        logging.info("Starting training for Fold {}/{}".format(fold+1, nfold)) 
+    for fold, dic in patient_splits.items():   
+        fold = int(fold)
+        logging.info("Starting training for Fold {}/{}".format(fold, nfold)) 
 
         # Sample elements randomly from a given list of ids, no replacement. 
-        new_train_ids = list(train_ids)
-        #new_train_ids.extend(list(range(8855, 27000)))
-        train_subsampler = torch.utils.data.SubsetRandomSampler(np.array(new_train_ids))
+        train_recs = utils.flatten([files_per_patient[pid] for pid in dic['train']])
+        val_recs = utils.flatten([files_per_patient[pid] for pid in dic['val']]) 
+        train_ids = np.array([fname_idx[rec] for rec in train_recs])
+        val_ids = np.array([fname_idx[rec] for rec in val_recs])
+ 
+        train_subsampler = torch.utils.data.SubsetRandomSampler(train_ids)
         val_subsampler = torch.utils.data.SubsetRandomSampler(val_ids)
         
         logging.info("Loading the datasets...")
@@ -230,6 +236,7 @@ if __name__ == '__main__':
         model, loss_fn = choose_model(args.model_dir, params) 
 
         optimizer = optim.Adam(list(model.parameters()) + list(loss_fn.parameters()), lr=params.learning_rate) 
+        #optimizer = optim.Adam(list(model.parameters()) , lr=params.learning_rate) 
         
         step_size = 4*nb_leads*len(train_dl)
         end_lr, factor = 1.5e-3, 6
@@ -243,14 +250,14 @@ if __name__ == '__main__':
                         args.model_dir, writer, fold, nb_leads, args.restore_file)
         logging.info("- done.")
         
-        logging.info("Starting testing for Fold {}/{}".format(fold+1, nfold)) 
+        logging.info("Starting testing for Fold {}/{}".format(fold, nfold)) 
         
         # Reload weights from the saved file  
         utils.load_checkpoint(os.path.join(
-            args.model_dir, 'best-{}.pth.tar'.format(fold+1)), model)
+            args.model_dir, 'best-{}.pth.tar'.format(fold)), model)
 
         # Evaluate
         val_metrics = evaluate(model, loss_fn, val_dl, metrics, params)
         save_path = os.path.join(
-            args.model_dir, "metrics_val_{}_fold{}.json".format(args.restore_file, fold+1))
+            args.model_dir, "metrics_val_{}_fold{}.json".format(args.restore_file, fold))
         utils.save_dict_to_json(val_metrics, save_path)
